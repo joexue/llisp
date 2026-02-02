@@ -3,16 +3,6 @@
 -- Joe Xue(lgxue@Hotmail.com) 2026
 --]]
 
-TRACE = false
-
-function trace(t, newline)
-    if TRACE and newline then
-        io.write(t .. "\n")
-    elseif TRACE then
-        io.write("TRACE: " .. t)
-    end
-end
-
 STACK = {}
 ATOM = {"ERR", "#t"}
 
@@ -21,137 +11,302 @@ ERR = {"ATOM", 1}
 TRUE = {"ATOM", 2}
 ENV = {}
 
-function cons(ll, lr)
-    table.insert(STACK, ll)
-    table.insert(STACK, lr)
+function is_equ(x, y)
+    return x[1] == y[1] and x[2] == y[2]
+end
+
+function is_nil(x)
+    return x[1] == "NIL"
+end
+
+function assoc(x, e)
+    while e[1] == "CONS" and not is_equ(x, car(car(e))) do
+        e = cdr(e)
+    end
+
+    if e[1] == "CONS" then
+        return cdr(car(e))
+    end
+
+    return ERR
+end
+
+function eval(x, e)
+    if x[1] == "ATOM" then
+        return assoc(x, e)
+    elseif x[1] == "CONS" then
+        return apply(eval(car(x), e), cdr(x), e)
+    else
+        return x
+    end
+end
+
+function evlis(x, e)
+    if x[1] == "CONS" then
+        return cons(eval(car(x), e), evlis(cdr(x), e))
+    elseif x[1] == "ATOM" then
+        return assoc(x, e)
+    else
+        return NIL
+    end
+end
+
+function cons(x, y)
+    table.insert(STACK, x)
+    table.insert(STACK, y)
 
     return {"CONS", #STACK}
 end
 
-function lnot(l)
-    return l[1] == 'NIL'
-end
-
-function car(l)
-    if l[1] == "CONS" or l[1] == "CLOS" then
-        return STACK[l[2] - 1]
+function car(x)
+    if x[1] == "CONS" or x[1] == "CLOS" then
+        return STACK[x[2] - 1]
     end
 
     return ERR;
 end
 
-function cdr(l)
-    if l[1] == "CONS" or l[1] == "CLOS" then
-        return STACK[l[2]]
+function cdr(x)
+    if x[1] == "CONS" or x[1] == "CLOS" then
+        return STACK[x[2]]
     end
 
     return ERR;
+end
+
+function pair(k, v, e)
+    return cons(cons(k, v), e)
+end
+
+function closure(v, x, e)
+    if is_equ(e, ENV) then
+        e = NIL
+    end
+
+    return {"CLOS", pair(v, x, e)[2]}
+end
+
+function let(x)
+    return not is_nil(x) and not is_nil(cdr(x))
 end
 
 PRIM = {
     {
         "eval",
         function(t, e)
+            return eval(car(evlis(t, e)), e);
         end
     },
     {
         "car",
         function(t, e)
+            return car(car(evlis(t,e)))
         end
     },
     {
         "-",
         function(t, e)
+            t = evlis(t, e)
+            local n = car(t)[2]
+
+            t = cdr(t)
+            while not is_nil(t) do
+                n = n - car(t)[2]
+                t = cdr(t)
+            end
+            return {"NUMBER", n}
         end
     },
     {
         "<",
         function(t, e)
+            t = evlis(t,e)
+            if car(t)[2] - car(cdr(t))[2] < 0 then
+                return TRUE
+            else
+                return NIL
+            end
         end
     },
     {
         "or",
         function(t, e)
+            local x = NIL;
+
+            while not is_nil(t) do
+                x = eval(car(t), e)
+                if is_nil(x) then
+                    t = cdr(t)
+                else
+                    break
+                end
+            end
+
+            return x;
         end
     },
     {
         "cond",
         function(t, e)
+            while is_nil(eval(car(car(t), e))) do
+                t = cdr(t)
+            end
+            return eval(car(cdr(car(t))), e)
         end
     },
     {
         "lambda",
         function(t, e)
+            return closure(car(t), car(cdr(t)), e);
         end
     },
     {
         "quote",
         function(t, e)
+            return car(t)
         end
     },
     {
         "cdr",
         function(t, e)
+            return cdr(car(evlis(t,e)))
         end
     },
     {
         "*",
         function(t, e)
+            t = evlis(t, e)
+            local n = car(t)[2]
+
+            t = cdr(t)
+            while not is_nil(t) do
+                n = n * car(t)[2]
+                t = cdr(t)
+            end
+            return {"NUMBER", n}
         end
     },
     {
         "int",
         function(t, e)
+            local n = car(evlis(ta ,e));
+            return {"NUMBER", math.floor(n[2])}
         end
     },
     {
         "and",
         function(t, e)
+            local x = TRUE;
+
+            while not is_nil(t) do
+                x = eval(car(t), e)
+                if not is_nil(x) then
+                    t = cdr(t)
+                else
+                    break
+                end
+            end
+
+            return x;
         end
     },
     {
         "if",
         function(t, e)
+            local n = eval(car(t), e)
+            if is_nil(n) then
+                t = cdr(t)
+            end
+
+            return eval(car(cdr(t)), e)
         end
     },
     {
         "define",
         function(t, e)
+            ENV = pair(car(t), eval(car(cdr(t)), e), ENV);
+            return car(t);
         end
     },
     {
         "cons",
         function(t, e)
+            t = evlis(t, e)
+            return cons(car(t), car(cdr(t)))
         end
     },
     {
         "+",
         function(t, e)
+            t = evlis(t, e)
+            local n = car(t)[2]
+
+            t = cdr(t)
+            while not is_nil(t) do
+                n = n + car(t)[2]
+                t = cdr(t)
+            end
+            return {"NUMBER", n}
         end
     },
     {
         "/",
         function(t, e)
+            t = evlis(t, e)
+            local n = car(t)[2]
+
+            t = cdr(t)
+            while not is_nil(t) do
+                n = n / car(t)[2]
+                t = cdr(t)
+            end
+            return {"NUMBER", n}
         end
     },
     {
         "eq?",
         function(t, e)
+            t = evlis(t, e)
+            if is_equ(car(t), car(cdr(t))) then
+                return TRUE
+            else
+                return NIL
+            end
         end
     },
     {
         "not",
         function(t, e)
+            if is_nil(car(evlis(t, e))) then
+                return TRUE
+            else
+                return NIL
+            end
         end
     },
     {
         "let*",
         function(t, e)
+            while true do
+                if not let(t) then
+                    break
+                end
+                e = pair(car(car(t)), eval(car(cdr(car(t))), e), e)
+                t = cdr(t)
+            end
+
+             return eval(car(t), e);
         end
     },
     {
         "pair?",
         function(t, e)
+            local x = car(evlis(t, e));
+            if x[1] == "CONS" then
+                return TRUE
+            else
+                return NIL
+            end
         end
     }
 }
@@ -163,7 +318,7 @@ function print_lisp(l)
         while true do
             print_lisp(car(l))
             l = cdr(l)
-            if lnot(l) then
+            if is_nil(l) then
                 break
             end
             io.write(" ")
@@ -200,7 +355,6 @@ function get_scan(lisp)
     pos = 1
     return function()
         local token = {}
-        trace("POS: " .. pos, false)
         --io.read()
 
         local c
@@ -210,13 +364,11 @@ function get_scan(lisp)
             if c ~= ' ' then
                 break
             end
-            trace("TOKEN: " .. '_', true)
             pos = pos + 1
         end
 
         if c == '(' or c == ')' or c == '\'' or c == '' then
             -- Consume it
-            trace("TOKEN: " .. c, true)
             pos = pos + 1
             return c
         end
@@ -231,12 +383,10 @@ function get_scan(lisp)
             table.insert(token, c)
             pos = pos + 1
         end
-        trace("TOKEN: " .. table.concat(token), true)
         return table.concat(token)
     end
 end
 
-local parse
 function atomic(token)
     local n = tonumber(token)
 
@@ -254,75 +404,78 @@ function atomic(token)
             table.insert(ATOM, token)
         end
 
-        trace(ATOM[index], true)
         return {"ATOM", index}
     end
 
     return {"NUMBER", n}
 end
 
-function quote(scan)
-    return cons(atomic("quote"), cons(parse(scan(), scan), NIL))
-end
+function parse(c, scan)
+    parse_list = function(scan)
+        local c = scan()
+        if c == ')' then
+            return NIL
+        end
 
-function list(scan)
-    c = scan()
-    trace("IN LIST " .. c, true)
-    --print(c)
-    if c == ')' then
-        trace("()", true)
-        return NIL
+        local x = parse(c, scan)
+        if is_equ(x, ERR) then
+            return ERR
+        end
+
+        local y = parse_list(scan)
+        if is_equ(y, ERR) then
+            return ERR
+        end
+        return cons(x, y)
     end
 
-    --return parse(scan)
-    x = parse(c, scan)
-    return cons(x, list(scan))
-end
+    parse_quote = function(scan)
+        return cons(atomic("quote"), cons(parse(scan(), scan), NIL))
+    end
 
-function parse(c, scan)
-    --local c = scan()
     if c == '(' then
-        return list(scan)
+        return parse_list(scan)
     elseif c == '\'' then
-        return quote(scan)
+        return parse_quote(scan)
+    elseif c == '' then
+        return ERR
     else
         return atomic(c)
     end
 end
 
-function equ(ll, lr)
-    return ll[1] == lr[1] and ll[2] == lr[2]
-end
 
-function pair(l, v, e)
-    return cons(cons(l, v), e)
-end
-
--- EVAL
-function assoc(l, e)
-    while e[1] == "CONS" and not equ(l, car(car(e))) do
-        e = cdr(e)
+function bind(v, t, e)
+    if is_nil(v) then
+        return e
     end
 
-    if e[1] == "CONS" then
-        return cdr(car(e))
+    if v[1] == "CONS" then
+        return bind(cdr(v), cdr(t), pair(car(v), car(t), e))
     end
 
-    return ERR
+    return pair(v, t, e)
 end
 
-function apply(f, l, e)
-    return ERR
-end
-
-function eval(l, e)
-    if l[1] == "ATOM" then
-        return assoc(l, e)
-    elseif l[1] == "CONS" then
-        return apply(eval(car(l), e), cdr(l), e)
+function reduce(f, t, e)
+    local n
+    if is_nil(cdr(f)) then
+        n = ENV
     else
-        return l
+        n = cdr(f)
     end
+
+    return eval(cdr(car(f)), bind(car(car(f)), evlis(t, e), n))
+end
+
+function apply(f, t, e)
+    if f[1] == "PRIM" then
+        return PRIM[f[2]][2](t, e)
+    elseif f[1] == "CLOS" then
+        return reduce(f, t, e);
+    end
+
+    return ERR
 end
 
 function read()
