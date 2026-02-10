@@ -321,6 +321,11 @@ function print_lisp(l)
             if is_nil(l) then
                 break
             end
+            if l[1] ~= "CONS" then
+                io.write(" . ")
+                print_lisp(l)
+                break
+            end
             io.write(" ")
         end
         io.write(")")
@@ -415,6 +420,11 @@ function parse(c, scan)
         local c = scan()
         if c == ')' then
             return NIL
+        end
+
+        if c == '.' then
+            c = scan()
+            return parse(c, scan)
         end
 
         local x = parse(c, scan)
