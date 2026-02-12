@@ -52,15 +52,15 @@ function evlis(x, e)
 end
 
 function cons(x, y)
-    table.insert(STACK, x)
     table.insert(STACK, y)
+    table.insert(STACK, x)
 
     return {"CONS", #STACK}
 end
 
 function car(x)
     if x[1] == "CONS" or x[1] == "CLOS" then
-        return STACK[x[2] - 1]
+        return STACK[x[2]]
     end
 
     return ERR;
@@ -68,7 +68,7 @@ end
 
 function cdr(x)
     if x[1] == "CONS" or x[1] == "CLOS" then
-        return STACK[x[2]]
+        return STACK[x[2] - 1]
     end
 
     return ERR;
@@ -493,15 +493,68 @@ function read()
     return parse(scan(), scan)
 end
 
+function gc()
+    local temp_stack = {}
+    local move
+    move = function(x)
+        if x[1] == "CONS" then
+            move(cdr(x))
+            move(car(x))
+            table.insert(temp_stack, {"CONS", #temp_stack})
+        else
+            table.insert(temp_stack, x)
+        end
+    end
+
+    while #STACK ~= ENV[2] do
+        table.remove(STACK)
+    end
+
+    if is_equ(ENV, OLD_ENV) then
+        return
+    end
+
+    local env = car(ENV)
+    local env1 = cdr(ENV)
+
+    while true do
+        move(env)
+        if is_equ(env1, OLD_ENV) then
+            break
+        end
+        env = car(env1)
+        env1 = cdr(env1)
+    end
+
+    while #STACK ~= OLD_ENV[2] do
+        table.remove(STACK)
+    end
+
+    for i = 1, #temp_stack do
+        if temp_stack[i][1] == "CONS" then
+            table.insert(STACK, {"CONS", temp_stack[i][2] + OLD_ENV[2]})
+        else
+            table.insert(STACK, temp_stack[i])
+        end
+    end
+
+    ENV = cons(STACK[#STACK], OLD_ENV)
+
+    OLD_ENV = ENV
+end
+
 -- ENV initilization
 ENV = pair(TRUE, TRUE, NIL)
 for i = 1, #PRIM do
     ENV = pair(atomic(PRIM[i][1]), {"PRIM", i}, ENV)
 end
 
+OLD_ENV = ENV
+
 io.write("LLisp -- Lisp interpreter written by Lua")
 while true do
-    io.write("\n> ")
+    io.write("\n" .. #STACK .. " > ")
     --print_lisp(read())
     print_lisp(eval(read(), ENV))
+    gc()
 end
