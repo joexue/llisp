@@ -495,6 +495,7 @@ end
 
 function gc()
     local temp_stack = {}
+    local temp_atom = {}
     local move
     move = function(x)
         if x[1] == "CONS" then
@@ -502,7 +503,13 @@ function gc()
             move(car(x))
             table.insert(temp_stack, {"CONS", #temp_stack})
         else
-            table.insert(temp_stack, x)
+            if x[1] == "ATOM" then
+                -- Move the atom(heap) into temp atom and change the value(will be) in stack
+                table.insert(temp_atom, ATOM[x[2]])
+                table.insert(temp_stack, {"ATOM", OLD_ATOM_NUM + #temp_atom})
+            else
+                table.insert(temp_stack, x)
+            end
         end
     end
 
@@ -511,6 +518,10 @@ function gc()
     end
 
     if is_equ(ENV, OLD_ENV) then
+        -- There is no new stack but may new heap
+        while #ATOM ~= OLD_ATOM_NUM do
+            table.remove(ATOM)
+        end
         return
     end
 
@@ -518,6 +529,7 @@ function gc()
     local env1 = cdr(ENV)
 
     while true do
+        -- Move all new env into temp stack
         move(env)
         if is_equ(env1, OLD_ENV) then
             break
@@ -530,6 +542,14 @@ function gc()
         table.remove(STACK)
     end
 
+    while #ATOM ~= OLD_ATOM_NUM do
+        table.remove(ATOM)
+    end
+
+    for i = 1, #temp_atom do
+        table.insert(ATOM, temp_atom[i])
+    end
+
     for i = 1, #temp_stack do
         if temp_stack[i][1] == "CONS" then
             table.insert(STACK, {"CONS", temp_stack[i][2] + OLD_ENV[2]})
@@ -540,6 +560,7 @@ function gc()
 
     ENV = cons(STACK[#STACK], OLD_ENV)
 
+    OLD_ATOM_NUM = #ATOM
     OLD_ENV = ENV
 end
 
@@ -550,11 +571,11 @@ for i = 1, #PRIM do
 end
 
 OLD_ENV = ENV
-
+OLD_ATOM_NUM = #ATOM
 io.write("LLisp -- Lisp interpreter written by Lua")
 while true do
-    io.write("\n" .. #STACK .. " > ")
+    io.write("\n" .. #STACK .. " " .. #ATOM .. " > ")
     --print_lisp(read())
     print_lisp(eval(read(), ENV))
-    gc()
+    --gc()
 end
