@@ -3,13 +3,10 @@
 -- Joe Xue(lgxue@Hotmail.com) 2026
 --]]
 
-STACK = {}
-ATOM = {"ERR", "#t"}
-
-NIL = {"NIL", 0}
-ERR = {"ATOM", 1}
-TRUE = {"ATOM", 2}
-ENV = {}
+NIL = { "NIL", 0 }
+ERR = { "ATOM", "ERR" }
+TRUE = { "ATOM", "#t" }
+ENV = { NIL }
 
 function is_equ(x, y)
     return x[1] == y[1] and x[2] == y[2]
@@ -52,15 +49,12 @@ function evlis(x, e)
 end
 
 function cons(x, y)
-    table.insert(STACK, y)
-    table.insert(STACK, x)
-
-    return {"CONS", #STACK}
+    return { "CONS", x, y }
 end
 
 function car(x)
     if x[1] == "CONS" or x[1] == "CLOS" then
-        return STACK[x[2]]
+        return x[2]
     end
 
     return ERR;
@@ -68,7 +62,7 @@ end
 
 function cdr(x)
     if x[1] == "CONS" or x[1] == "CLOS" then
-        return STACK[x[2] - 1]
+        return x[3]
     end
 
     return ERR;
@@ -78,12 +72,12 @@ function pair(k, v, e)
     return cons(cons(k, v), e)
 end
 
-function closure(v, x, e)
+function closure(k, v, e)
     if is_equ(e, ENV) then
         e = NIL
     end
 
-    return {"CLOS", pair(v, x, e)[2]}
+    return { "CLOS", cons(k, v), e }
 end
 
 function let(x)
@@ -189,7 +183,7 @@ PRIM = {
     {
         "int",
         function(t, e)
-            local n = car(evlis(ta ,e));
+            local n = car(evlis(t ,e));
             return {"NUMBER", math.floor(n[2])}
         end
     },
@@ -224,7 +218,21 @@ PRIM = {
     {
         "define",
         function(t, e)
-            ENV = pair(car(t), eval(car(cdr(t)), e), ENV);
+            local v = eval(car(cdr(t)), e)
+
+            -- Find if we already have this var in ENV, if so, substitute it
+            e = ENV
+            while e[1] == "CONS" and not is_equ(car(t), car(car(e))) do
+                e = cdr(e)
+            end
+
+            if e[1] == "CONS" then
+                local p = car(e)
+                p[3] = v
+                return car(t);
+            end
+
+            ENV = pair(car(t), v, ENV);
             return car(t);
         end
     },
@@ -311,7 +319,6 @@ PRIM = {
     }
 }
 
-
 function print_lisp(l)
     local print_list = function(l)
         io.write("(")
@@ -336,7 +343,7 @@ function print_lisp(l)
     end
 
     if l[1] == "ATOM" then
-        io.write(ATOM[l[2]])
+        io.write(l[2])
     end
 
     if l[1] == "PRIM" then
@@ -348,7 +355,7 @@ function print_lisp(l)
     end
 
     if l[1] == "CLOS" then
-        io.write("{" .. l[2] .. "}")
+        io.write("{CLOSURE}")
     end
 
     if l[1] == "NUMBER" then
@@ -394,25 +401,11 @@ end
 
 function atomic(token)
     local n = tonumber(token)
-
     if not n then
-        --default error
-        local index = #ATOM + 1
-        for i = 1, #ATOM do
-            if ATOM[i] == token then
-                index = i
-                break
-            end
-        end
-
-        if index == #ATOM + 1 then
-            table.insert(ATOM, token)
-        end
-
-        return {"ATOM", index}
+        return { "ATOM", token }
     end
 
-    return {"NUMBER", n}
+    return { "NUMBER", n }
 end
 
 function parse(c, scan)
@@ -493,89 +486,16 @@ function read()
     return parse(scan(), scan)
 end
 
-function gc()
-    local temp_stack = {}
-    local temp_atom = {}
-    local move
-    move = function(x)
-        if x[1] == "CONS" then
-            move(cdr(x))
-            move(car(x))
-            table.insert(temp_stack, {"CONS", #temp_stack})
-        else
-            if x[1] == "ATOM" then
-                -- Move the atom(heap) into temp atom and change the value(will be) in stack
-                table.insert(temp_atom, ATOM[x[2]])
-                table.insert(temp_stack, {"ATOM", OLD_ATOM_NUM + #temp_atom})
-            else
-                table.insert(temp_stack, x)
-            end
-        end
-    end
-
-    while #STACK ~= ENV[2] do
-        table.remove(STACK)
-    end
-
-    if is_equ(ENV, OLD_ENV) then
-        -- There is no new stack but may new heap
-        while #ATOM ~= OLD_ATOM_NUM do
-            table.remove(ATOM)
-        end
-        return
-    end
-
-    local env = car(ENV)
-    local env1 = cdr(ENV)
-
-    while true do
-        -- Move all new env into temp stack
-        move(env)
-        if is_equ(env1, OLD_ENV) then
-            break
-        end
-        env = car(env1)
-        env1 = cdr(env1)
-    end
-
-    while #STACK ~= OLD_ENV[2] do
-        table.remove(STACK)
-    end
-
-    while #ATOM ~= OLD_ATOM_NUM do
-        table.remove(ATOM)
-    end
-
-    for i = 1, #temp_atom do
-        table.insert(ATOM, temp_atom[i])
-    end
-
-    for i = 1, #temp_stack do
-        if temp_stack[i][1] == "CONS" then
-            table.insert(STACK, {"CONS", temp_stack[i][2] + OLD_ENV[2]})
-        else
-            table.insert(STACK, temp_stack[i])
-        end
-    end
-
-    ENV = cons(STACK[#STACK], OLD_ENV)
-
-    OLD_ATOM_NUM = #ATOM
-    OLD_ENV = ENV
-end
-
 -- ENV initilization
-ENV = pair(TRUE, TRUE, NIL)
+ENV = pair(TRUE, TRUE, ENV)
 for i = 1, #PRIM do
     ENV = pair(atomic(PRIM[i][1]), {"PRIM", i}, ENV)
 end
 
-OLD_ENV = ENV
-OLD_ATOM_NUM = #ATOM
-io.write("LLisp -- Lisp interpreter written by Lua")
+io.write("LLisp -- A Lisp interpreter written by Lua")
 while true do
-    io.write("\n" .. #STACK .. " " .. #ATOM .. " > ")
+    io.write("\n> ")
     --print_lisp(read())
     print_lisp(eval(read(), ENV))
-    --gc()
+    --print_lisp(ENV)
 end
