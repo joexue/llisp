@@ -148,7 +148,7 @@ PRIM = {
     {
         "cond",
         function(t, e)
-            while is_nil(eval(car(car(t), e))) do
+            while is_nil(eval(car(car(t)), e)) do
                 t = cdr(t)
             end
             return eval(car(cdr(car(t))), e)
