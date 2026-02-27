@@ -400,7 +400,11 @@ function print_lisp(x)
     end
 
     if x[1] == "CLOS" then
-        io.write("{CLOSURE}")
+        io.write("{")
+        print_list(car(x[2]))
+        io.write(" ")
+        print_list(cdr(x[2]))
+        io.write("}")
     end
 
     if x[1] == "NUMBER" then
