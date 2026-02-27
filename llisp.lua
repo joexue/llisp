@@ -1,51 +1,41 @@
 --[[
--- LLisp, lisp interpreter written by Lua.
--- Joe Xue(lgxue@Hotmail.com) 2026
+-- LLisp, A lisp interpreter written by Lua.
+-- Copyright (c) 2026 Joe Xue(lgxue@Hotmail.com)
 --]]
 
-NIL = { "NIL", 0 }
-ERR = { "ATOM", "ERR" }
+NIL  = { "NIL" }
+ERR  = { "ATOM", "ERR" }
 TRUE = { "ATOM", "#t" }
-ENV = { NIL }
 
-function is_equ(x, y)
-    return x[1] == y[1] and x[2] == y[2]
-end
+ENV  = NIL
 
 function is_nil(x)
     return x[1] == "NIL"
 end
 
-function assoc(x, e)
-    while e[1] == "CONS" and not is_equ(x, car(car(e))) do
-        e = cdr(e)
-    end
-
-    if e[1] == "CONS" then
-        return cdr(car(e))
-    end
-
-    return ERR
+function is_equ(x, y)
+    return x[1] == y[1] and x[2] == y[2]
 end
 
-function eval(x, e)
-    if x[1] == "ATOM" then
-        return assoc(x, e)
-    elseif x[1] == "CONS" then
-        return apply(eval(car(x), e), cdr(x), e)
-    else
-        return x
-    end
+function is_let(x)
+    return not is_nil(x) and not is_nil(cdr(x))
 end
 
-function evlis(x, e)
-    if x[1] == "CONS" then
-        return cons(eval(car(x), e), evlis(cdr(x), e))
-    elseif x[1] == "ATOM" then
-        return assoc(x, e)
-    else
-        return NIL
+function atomic(token)
+    local n = tonumber(token)
+    if not n then
+        return { "ATOM", token }
     end
+
+    return { "NUMBER", n }
+end
+
+function closure(k, v, e)
+    if is_equ(e, ENV) then
+        e = NIL
+    end
+
+    return { "CLOS", cons(k, v), e }
 end
 
 function cons(x, y)
@@ -72,16 +62,69 @@ function pair(k, v, e)
     return cons(cons(k, v), e)
 end
 
-function closure(k, v, e)
-    if is_equ(e, ENV) then
-        e = NIL
+function assoc(x, e)
+    while e[1] == "CONS" and not is_equ(x, car(car(e))) do
+        e = cdr(e)
     end
 
-    return { "CLOS", cons(k, v), e }
+    if e[1] == "CONS" then
+        return cdr(car(e))
+    end
+
+    return ERR
 end
 
-function let(x)
-    return not is_nil(x) and not is_nil(cdr(x))
+function bind(v, t, e)
+    if is_nil(v) then
+        return e
+    end
+
+    if v[1] == "CONS" then
+        return bind(cdr(v), cdr(t), pair(car(v), car(t), e))
+    end
+
+    return pair(v, t, e)
+end
+
+function reduce(f, t, e)
+    local n
+    if is_nil(cdr(f)) then
+        n = ENV
+    else
+        n = cdr(f)
+    end
+
+    return eval(cdr(car(f)), bind(car(car(f)), evlis(t, e), n))
+end
+
+function apply(f, t, e)
+    if f[1] == "PRIM" then
+        return PRIM[f[2]][2](t, e)
+    elseif f[1] == "CLOS" then
+        return reduce(f, t, e);
+    end
+
+    return ERR
+end
+
+function evlis(x, e)
+    if x[1] == "CONS" then
+        return cons(eval(car(x), e), evlis(cdr(x), e))
+    elseif x[1] == "ATOM" then
+        return assoc(x, e)
+    end
+
+    return NIL
+end
+
+function eval(x, e)
+    if x[1] == "ATOM" then
+        return assoc(x, e)
+    elseif x[1] == "CONS" then
+        return apply(eval(car(x), e), cdr(x), e)
+    end
+
+    return x
 end
 
 PRIM = {
@@ -108,7 +151,7 @@ PRIM = {
                 n = n - car(t)[2]
                 t = cdr(t)
             end
-            return {"NUMBER", n}
+            return { "NUMBER", n }
         end
     },
     {
@@ -117,9 +160,8 @@ PRIM = {
             t = evlis(t,e)
             if car(t)[2] - car(cdr(t))[2] < 0 then
                 return TRUE
-            else
-                return NIL
             end
+            return NIL
         end
     },
     {
@@ -177,14 +219,14 @@ PRIM = {
                 n = n * car(t)[2]
                 t = cdr(t)
             end
-            return {"NUMBER", n}
+            return { "NUMBER", n }
         end
     },
     {
         "int",
         function(t, e)
             local n = car(evlis(t ,e));
-            return {"NUMBER", math.floor(n[2])}
+            return { "NUMBER", math.floor(n[2]) }
         end
     },
     {
@@ -254,7 +296,7 @@ PRIM = {
                 n = n + car(t)[2]
                 t = cdr(t)
             end
-            return {"NUMBER", n}
+            return { "NUMBER", n }
         end
     },
     {
@@ -268,7 +310,7 @@ PRIM = {
                 n = n / car(t)[2]
                 t = cdr(t)
             end
-            return {"NUMBER", n}
+            return { "NUMBER", n }
         end
     },
     {
@@ -277,9 +319,8 @@ PRIM = {
             t = evlis(t, e)
             if is_equ(car(t), car(cdr(t))) then
                 return TRUE
-            else
-                return NIL
             end
+            return NIL
         end
     },
     {
@@ -287,16 +328,15 @@ PRIM = {
         function(t, e)
             if is_nil(car(evlis(t, e))) then
                 return TRUE
-            else
-                return NIL
             end
+            return NIL
         end
     },
     {
         "let*",
         function(t, e)
             while true do
-                if not let(t) then
+                if not is_let(t) then
                     break
                 end
                 e = pair(car(car(t)), eval(car(cdr(car(t))), e), e)
@@ -312,14 +352,19 @@ PRIM = {
             local x = car(evlis(t, e));
             if x[1] == "CONS" then
                 return TRUE
-            else
-                return NIL
             end
+            return NIL
+        end
+    },
+    {
+        "env",
+        function(_, e)
+            return e
         end
     }
 }
 
-function print_lisp(l)
+function print_lisp(x)
     local print_list = function(l)
         io.write("(")
         while true do
@@ -338,37 +383,35 @@ function print_lisp(l)
         io.write(")")
     end
 
-    if l[1] == "NIL" then
+    if x[1] == "NIL" then
         io.write("()")
     end
 
-    if l[1] == "ATOM" then
-        io.write(l[2])
+    if x[1] == "ATOM" then
+        io.write(x[2])
     end
 
-    if l[1] == "PRIM" then
-        io.write("<" .. PRIM[l[2]][1] .. ">")
+    if x[1] == "PRIM" then
+        io.write("<" .. PRIM[x[2]][1] .. ">")
     end
 
-    if l[1] == "CONS" then
-        print_list(l)
+    if x[1] == "CONS" then
+        print_list(x)
     end
 
-    if l[1] == "CLOS" then
+    if x[1] == "CLOS" then
         io.write("{CLOSURE}")
     end
 
-    if l[1] == "NUMBER" then
-        io.write(l[2])
+    if x[1] == "NUMBER" then
+        io.write(x[2])
     end
 end
 
 function get_scan(lisp)
-    pos = 1
+    local pos = 1
     return function()
         local token = {}
-        --io.read()
-
         local c
         while true do
             -- First letter
@@ -386,7 +429,6 @@ function get_scan(lisp)
         end
 
         while true do
-            --io.write(" 3-> " .. c .. " ")
             c = string.sub(lisp, pos, pos)
             if c == '(' or c == ')' or c == '\'' or c == ' ' or c == '' then
                 -- Consume it next round
@@ -397,15 +439,6 @@ function get_scan(lisp)
         end
         return table.concat(token)
     end
-end
-
-function atomic(token)
-    local n = tonumber(token)
-    if not n then
-        return { "ATOM", token }
-    end
-
-    return { "NUMBER", n }
 end
 
 function parse(c, scan)
@@ -445,40 +478,6 @@ function parse(c, scan)
     else
         return atomic(c)
     end
-end
-
-
-function bind(v, t, e)
-    if is_nil(v) then
-        return e
-    end
-
-    if v[1] == "CONS" then
-        return bind(cdr(v), cdr(t), pair(car(v), car(t), e))
-    end
-
-    return pair(v, t, e)
-end
-
-function reduce(f, t, e)
-    local n
-    if is_nil(cdr(f)) then
-        n = ENV
-    else
-        n = cdr(f)
-    end
-
-    return eval(cdr(car(f)), bind(car(car(f)), evlis(t, e), n))
-end
-
-function apply(f, t, e)
-    if f[1] == "PRIM" then
-        return PRIM[f[2]][2](t, e)
-    elseif f[1] == "CLOS" then
-        return reduce(f, t, e);
-    end
-
-    return ERR
 end
 
 function read()

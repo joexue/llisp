@@ -29,3 +29,4 @@ Inspired by tinylisp: https://github.com/Robert-van-Engelen/tinylisp
 * not
 * let\*
 * pair?
+* env
