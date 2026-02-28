@@ -144,10 +144,16 @@ PRIM = {
         "-",
         function(t, e)
             t = evlis(t, e)
+            if car(t)[1] ~= "NUMBER" then
+                return ERR
+            end
             local n = car(t)[2]
 
             t = cdr(t)
             while not is_nil(t) do
+                if car(t)[1] ~= "NUMBER" then
+                    return ERR
+                end
                 n = n - car(t)[2]
                 t = cdr(t)
             end
@@ -158,6 +164,9 @@ PRIM = {
         "<",
         function(t, e)
             t = evlis(t,e)
+            if car(t)[1] ~= "NUMBER" or car(cdr(t))[1] ~= "NUMBER"  then
+                return ERR
+            end
             if car(t)[2] - car(cdr(t))[2] < 0 then
                 return TRUE
             end
@@ -212,10 +221,16 @@ PRIM = {
         "*",
         function(t, e)
             t = evlis(t, e)
+            if car(t)[1] ~= "NUMBER" then
+                return ERR
+            end
             local n = car(t)[2]
 
             t = cdr(t)
             while not is_nil(t) do
+                if car(t)[1] ~= "NUMBER" then
+                    return ERR
+                end
                 n = n * car(t)[2]
                 t = cdr(t)
             end
@@ -289,10 +304,16 @@ PRIM = {
         "+",
         function(t, e)
             t = evlis(t, e)
+            if car(t)[1] ~= "NUMBER" then
+                return ERR
+            end
             local n = car(t)[2]
 
             t = cdr(t)
             while not is_nil(t) do
+                if car(t)[1] ~= "NUMBER" then
+                    return ERR
+                end
                 n = n + car(t)[2]
                 t = cdr(t)
             end
@@ -303,10 +324,16 @@ PRIM = {
         "/",
         function(t, e)
             t = evlis(t, e)
+            if car(t)[1] ~= "NUMBER" then
+                return ERR
+            end
             local n = car(t)[2]
 
             t = cdr(t)
             while not is_nil(t) do
+                if car(t)[1] ~= "NUMBER" then
+                    return ERR
+                end
                 n = n / car(t)[2]
                 t = cdr(t)
             end
