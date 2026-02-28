@@ -446,30 +446,38 @@ function get_scan(lisp)
         local token = {}
         local c
         while true do
-            -- First letter
-            c = string.sub(lisp, pos, pos)
-            if c ~= ' ' then
-                break
+            if pos > string.len(lisp) then
+                lisp = io.read()
+                pos = 1
             end
-            pos = pos + 1
-        end
-
-        if c == '(' or c == ')' or c == '\'' or c == '' then
-            -- Consume it
-            pos = pos + 1
-            return c
-        end
-
-        while true do
-            c = string.sub(lisp, pos, pos)
-            if c == '(' or c == ')' or c == '\'' or c == ' ' or c == '' then
-                -- Consume it next round
-                break
+            while true do
+                -- First letter
+                c = string.sub(lisp, pos, pos)
+                if c ~= ' ' then
+                    break
+                end
+                pos = pos + 1
             end
-            table.insert(token, c)
-            pos = pos + 1
+
+            if c == '(' or c == ')' or c == '\'' then
+                -- Consume it
+                pos = pos + 1
+                return c
+            end
+
+            while true do
+                c = string.sub(lisp, pos, pos)
+                if c == '(' or c == ')' or c == '\'' or c == ' ' or c == '' then
+                    -- Consume it next round
+                    break
+                end
+                table.insert(token, c)
+                pos = pos + 1
+            end
+            if #token > 0 then
+                return table.concat(token)
+            end
         end
-        return table.concat(token)
     end
 end
 
@@ -505,19 +513,19 @@ function parse(c, scan)
         return parse_list(scan)
     elseif c == '\'' then
         return parse_quote(scan)
-    elseif c == '' then
-        return ERR
     else
         return atomic(c)
     end
 end
 
 function read()
-    local scan = get_scan(io.read())
-    local c = scan()
-    if c == '' then
+    local l = io.read()
+    l = string.gsub(l, "^%s*", "")
+    if string.len(l) == 0 then
         return VOID
     end
+    local scan = get_scan(l)
+    local c = scan()
     return parse(c, scan)
 end
 
