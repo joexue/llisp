@@ -6,6 +6,7 @@
 NIL  = { "NIL" }
 ERR  = { "ATOM", "ERR" }
 TRUE = { "ATOM", "#t" }
+VOID = { "VOID" }
 
 ENV  = NIL
 
@@ -513,7 +514,11 @@ end
 
 function read()
     local scan = get_scan(io.read())
-    return parse(scan(), scan)
+    local c = scan()
+    if c == '' then
+        return VOID
+    end
+    return parse(c, scan)
 end
 
 -- ENV initilization
@@ -522,10 +527,14 @@ for i = 1, #PRIM do
     ENV = pair(atomic(PRIM[i][1]), {"PRIM", i}, ENV)
 end
 
-io.write("LLisp -- A Lisp interpreter written by Lua")
+io.write("LLisp -- A Lisp interpreter written by Lua\n")
 while true do
-    io.write("\n> ")
+    io.write("> ")
     --print_lisp(read())
-    print_lisp(eval(read(), ENV))
+    local l = read()
+    if l ~= VOID then
+        print_lisp(eval(l, ENV))
+        io.write("\n")
+    end
     --print_lisp(ENV)
 end
