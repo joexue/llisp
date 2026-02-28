@@ -540,7 +540,7 @@ while true do
     io.write("> ")
     --print_lisp(read())
     local l = read()
-    if l ~= VOID then
+    if not is_equ(l, VOID) then
         print_lisp(eval(l, ENV))
         io.write("\n")
     end
